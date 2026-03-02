@@ -1,0 +1,9 @@
+@import './base.css';
+@import "tailwindcss";
+
+
+#app {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
