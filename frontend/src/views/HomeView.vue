@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase } from '@/lib/supabaseClient'
+import BaseButton from '@/components/BaseButton.vue'
 
 const router = useRouter()
 const user = ref<{ email?: string } | null>(null)
@@ -19,6 +20,10 @@ const loadSession = async () => {
     return
   }
   user.value = data.session.user
+}
+
+const goToChoice = () => {
+  router.push({ name: 'choice' })
 }
 
 const handleSignOut = async () => {
@@ -74,6 +79,9 @@ onMounted(loadSession)
       <div class="mt-10 bg-white rounded-2xl p-8 border border-slate-100 shadow-sm">
         <h3 class="text-2xl font-bold text-primary-800 mb-3">Pronto para começar?</h3>
         <p class="text-slate-700">Navegue entre as seções, personalize seus objetivos e acompanhe seu progresso com consistência.</p>
+        <BaseButton @click="goToChoice" class="mt-6">
+          Ir para escolha de perfil
+        </BaseButton>
       </div>
     </div>
   </section>

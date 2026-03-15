@@ -27,6 +27,21 @@ const router = createRouter({
       // which is lazy-loaded when the route is visited.
       component: () => import('../views/AboutView.vue'),
     },
+    {
+      path: '/choice',
+      name: 'choice',
+      component: () => import('../views/ChoiceView.vue'),
+    },
+    {
+      path: '/found-caregiver',
+      name: 'found-caregiver',
+      component: () => import('../views/FoundCaregiver.vue'),
+    },
+    {
+      path: '/forms-page',
+      name: 'forms-page',
+      component: () => import('../views/FormsPage.vue'),
+    },
   ],
 })
 
