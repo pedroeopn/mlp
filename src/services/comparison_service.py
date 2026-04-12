@@ -84,7 +84,9 @@ class ComparisonService:
         try:
             features, labels = load_numeric_dataset(self.dataset_path)
             split = split_dataset(features, labels, params)
-            self._temp_dir = Path(mkdtemp(prefix="weka_arff_", dir="data"))
+            data_dir = Path("data")
+            data_dir.mkdir(exist_ok=True)
+            self._temp_dir = Path(mkdtemp(prefix="weka_arff_", dir=str(data_dir)))
 
             train_arff = write_split_to_arff(
                 split.x_train,
