@@ -12,7 +12,7 @@ from src.gui.components.chart_panel import ChartPanel
 from src.gui.components.controls_panel import ControlsPanel
 from src.gui.components.result_card import ResultCard
 
-ctk.set_appearance_mode("light")
+ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 ENGINE_ORDER = ["custom", "sklearn", "weka"]
@@ -22,14 +22,17 @@ ENGINE_TITLES = {
     "weka": "Weka",
 }
 CONTROL_KEY = "__session__"
+DISPLAY_FONT = "Didot"
+BODY_FONT = "Optima"
 
 
 class ComparativeMLPApp(ctk.CTk):
     def __init__(self, dataset_path: str | Path, weka_jar_path: str | Path | None = None):
         super().__init__()
-        self.title("Comparative MLP Dashboard")
+        self.title("MLP Glass Dashboard")
         self.geometry("1360x860")
-        self.minsize(920, 680)
+        self.minsize(860, 640)
+        self.configure(fg_color="#000000")
 
         self.controller = ComparisonController(dataset_path, weka_jar_path)
         self.results: dict[str, EngineResult] = {}
@@ -43,23 +46,47 @@ class ComparativeMLPApp(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
-        self.controls = ControlsPanel(self, on_run=self._on_run_clicked, on_cancel=self._on_cancel_clicked, width=330)
+        self.controls = ControlsPanel(self, on_run=self._on_run_clicked, on_cancel=self._on_cancel_clicked, width=340)
         self.controls.grid(row=0, column=0, sticky="nsew")
         self.controls.grid_propagate(False)
         self.controls.set_dataset_path(dataset_path)
 
-        self.content = ctk.CTkScrollableFrame(self, fg_color="#EEF3F7", corner_radius=18)
+        self.content = ctk.CTkScrollableFrame(
+            self,
+            fg_color="#050505",
+            corner_radius=28,
+            border_width=1,
+            border_color="#2B2B2B",
+        )
         self.content.grid(row=0, column=1, sticky="nsew", padx=18, pady=18)
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(2, weight=1)
 
-        header = ctk.CTkLabel(
+        self.header_frame = ctk.CTkFrame(
             self.content,
-            text="Comparative Results",
-            font=ctk.CTkFont(family="Avenir Next", size=30, weight="bold"),
-            text_color="#10212B",
+            fg_color="#0A0A0A",
+            corner_radius=24,
+            border_width=1,
+            border_color="#2F2F2F",
         )
-        header.grid(row=0, column=0, padx=12, pady=(12, 18), sticky="w")
+        self.header_frame.grid(row=0, column=0, padx=6, pady=(8, 18), sticky="ew")
+        self.header_frame.grid_columnconfigure(0, weight=1)
+
+        header = ctk.CTkLabel(
+            self.header_frame,
+            text="comparison ig",
+            font=ctk.CTkFont(family=DISPLAY_FONT, size=32, weight="bold"),
+            text_color="#FFFFFF",
+        )
+        header.grid(row=1, column=0, padx=18, pady=(0, 6), sticky="w")
+
+        summary = ctk.CTkLabel(
+            self.header_frame,
+            text="MLP",
+            font=ctk.CTkFont(family=BODY_FONT, size=15),
+            text_color="#CFCFCF",
+        )
+        summary.grid(row=2, column=0, padx=18, pady=(0, 16), sticky="w")
 
         self.cards_frame = ctk.CTkFrame(self.content, fg_color="transparent")
         self.cards_frame.grid(row=1, column=0, sticky="nsew", padx=6)
@@ -87,7 +114,7 @@ class ComparativeMLPApp(ctk.CTk):
 
     def _on_window_resize(self, _event=None) -> None:
         width = self.winfo_width()
-        compact = width < 1120
+        compact = width < 1180
         if compact == self._compact_layout:
             return
 
@@ -98,7 +125,7 @@ class ComparativeMLPApp(ctk.CTk):
             self.grid_rowconfigure(1, weight=1)
             self.controls.grid(row=0, column=0, columnspan=2, sticky="ew")
             self.content.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=18, pady=(0, 18))
-            self._layout_cards(columns=1)
+            self._layout_cards(columns=1 if width < 900 else 2)
         else:
             self.grid_rowconfigure(1, weight=0)
             self.grid_columnconfigure(0, weight=0)
@@ -112,20 +139,21 @@ class ComparativeMLPApp(ctk.CTk):
             params = HyperParameters(
                 learning_rate=float(self.controls.learning_rate_var.get()),
                 hidden_neurons=int(self.controls.hidden_neurons_var.get()),
+                epochs=int(self.controls.epochs_var.get()),
                 activation_function=self.controls.activation_var.get(),
             )
         except ValueError:
-            messagebox.showerror("Invalid input", "Learning rate and hidden neurons must be numeric.")
+            messagebox.showerror("Invalid input", "Use numeric values for rate, neurons, and epochs.")
             return
 
         dataset_path = Path(self.controls.dataset_var.get()).expanduser()
         if not dataset_path.exists():
-            messagebox.showerror("Dataset missing", f"Dataset not found: {dataset_path}")
+            messagebox.showerror("Dataset missing", f"Dataset not found:\n{dataset_path}")
             return
 
         self.results = {}
         self.controls.set_running(True)
-        self.controls.set_status("Starting worker processes...")
+        self.controls.set_status("Launching run...")
         for engine_key in ENGINE_ORDER:
             self._render_result(
                 engine_key,

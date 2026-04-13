@@ -106,6 +106,18 @@ The app starts with the default dataset at `src/data/dados.data-numeric`.
 - Scikit-Learn uses early stopping to reduce long-running fits.
 - Weka may not support the same activation options exposed by the UI. When parity is imperfect, the UI shows a note.
 
+## Custom Engine Limitations
+
+- In the current custom `src/core/mlp.py` integration, selecting `sigmoid` in the UI does not switch the model from Softmax to Sigmoid. The UI option is misleading for the custom engine.
+- The preserved `mlp.py` still runs the ReLU/Softmax path because the sigmoid forward-pass and derivative lines are commented out in the black-box source.
+- For the custom engine, only `hidden_neurons` and `epochs` actually affect training.
+- `learning_rate` does not affect the custom engine today because `mlp.py` uses a fixed internal value `alfa = 0.01`.
+
+Brief fix:
+
+- Update the UI to label activation and learning rate as applying only to Scikit-Learn/Weka for the custom engine, or disable those controls when the comparison includes the preserved custom model.
+- If real parity is required, refactor the custom wrapper so the preserved training function can receive activation mode and learning rate as explicit inputs instead of using hardcoded internal behavior.
+
 ## Common Issues
 
 ### Dataset not found

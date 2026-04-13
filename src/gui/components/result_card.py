@@ -4,78 +4,91 @@ import customtkinter as ctk
 
 from src.core.models import EngineResult
 
+DISPLAY_FONT = "Didot"
+BODY_FONT = "Optima"
+
 
 class ResultCard(ctk.CTkFrame):
     def __init__(self, master, title: str, **kwargs):
-        super().__init__(master, fg_color="#FFFFFF", **kwargs)
+        super().__init__(
+            master,
+            fg_color="#0B0B0B",
+            corner_radius=24,
+            border_width=1,
+            border_color="#2F2F2F",
+            **kwargs,
+        )
         self.grid_columnconfigure(0, weight=1)
 
         self.title_label = ctk.CTkLabel(
             self,
             text=title,
-            font=ctk.CTkFont(family="Avenir Next", size=22, weight="bold"),
-            text_color="#17364A",
+            font=ctk.CTkFont(family=DISPLAY_FONT, size=24, weight="bold"),
+            text_color="#FFFFFF",
         )
         self.title_label.grid(row=0, column=0, padx=18, pady=(18, 8), sticky="w")
 
         self.status_label = ctk.CTkLabel(
             self,
-            text="Pending",
-            text_color="#6C7F8E",
+            text="Idle",
+            text_color="#B5B5B5",
+            font=ctk.CTkFont(family=BODY_FONT, size=13, weight="bold"),
         )
         self.status_label.grid(row=1, column=0, padx=18, pady=(0, 8), sticky="w")
 
         self.metrics_label = ctk.CTkLabel(
             self,
-            text="Accuracy: --\nF1-Score: --\nTraining Time: --",
+            text="Acc  --\nF1   --\nTime --",
             justify="left",
-            text_color="#27485C",
+            text_color="#FFFFFF",
+            font=ctk.CTkFont(family=BODY_FONT, size=16),
         )
         self.metrics_label.grid(row=2, column=0, padx=18, pady=(0, 10), sticky="w")
 
         self.note_label = ctk.CTkLabel(
             self,
-            text="Awaiting execution.",
+            text="Waiting.",
             wraplength=320,
             justify="left",
-            text_color="#6C7F8E",
+            font=ctk.CTkFont(family=BODY_FONT, size=14),
+            text_color="#A8A8A8",
         )
         self.note_label.grid(row=3, column=0, padx=18, pady=(0, 18), sticky="w")
 
     def update_result(self, result: EngineResult | None) -> None:
         if result is None or result.status == "pending":
-            self.status_label.configure(text="Pending", text_color="#6C7F8E")
-            self.metrics_label.configure(text="Accuracy: --\nF1-Score: --\nTraining Time: --")
-            self.note_label.configure(text="Awaiting execution.")
+            self.status_label.configure(text="Idle", text_color="#B5B5B5")
+            self.metrics_label.configure(text="Acc  --\nF1   --\nTime --")
+            self.note_label.configure(text="Waiting.")
             return
 
         status_colors = {
-            "running": "#2D6286",
-            "completed": "#2F7D57",
-            "failed": "#8B2E34",
-            "cancelled": "#8B6A2B",
+            "running": "#FFFFFF",
+            "completed": "#FFFFFF",
+            "failed": "#F1F1F1",
+            "cancelled": "#D6D6D6",
         }
         self.status_label.configure(
             text=result.status.title(),
-            text_color=status_colors.get(result.status, "#6C7F8E"),
+            text_color=status_colors.get(result.status, "#B5B5B5"),
         )
 
         if result.status == "completed":
             metrics_text = (
-                f"Accuracy: {result.accuracy:.2f}%\n"
-                f"F1-Score: {result.f1_score:.4f}\n"
-                f"Training Time: {result.training_time:.3f}s"
+                f"Acc  {result.accuracy:.2f}%\n"
+                f"F1   {result.f1_score:.4f}\n"
+                f"Time {result.training_time:.3f}s"
             )
             if "iterations" in result.extra:
-                metrics_text += f"\nIterations: {result.extra['iterations']}"
+                metrics_text += f"\nIter {result.extra['iterations']}"
         else:
-            metrics_text = "Accuracy: --\nF1-Score: --\nTraining Time: --"
+            metrics_text = "Acc  --\nF1   --\nTime --"
 
         self.metrics_label.configure(text=metrics_text)
 
         if result.status == "running":
-            note_text = "Training in progress..."
+            note_text = "Running..."
         else:
-            note_text = result.note or "Execution completed successfully."
+            note_text = result.note or "Done."
 
         self.note_label.configure(text=note_text)
