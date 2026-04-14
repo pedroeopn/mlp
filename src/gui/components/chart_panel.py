@@ -38,18 +38,20 @@ class ChartPanel(ctk.CTkFrame):
 
         metrics = [
             ("Acc %", "accuracy", "#FFFFFF"),
-            ("F1", "f1_score", "#CFCFCF"),
             ("Time", "training_time", "#8F8F8F"),
         ]
 
         names = [ENGINE_TITLES[key] for key in ENGINE_ORDER]
         for index, (title, attribute, color) in enumerate(metrics, start=1):
-            axis = self.figure.add_subplot(1, 3, index)
+            axis = self.figure.add_subplot(1, 2, index)
             axis.set_facecolor("#0B0B0B")
             values = []
             for engine_key in ENGINE_ORDER:
                 result = results.get(engine_key)
-                value = getattr(result, attribute, 0.0) if result and result.status == "completed" else 0.0
+                value = 0.0
+                if result and result.status == "completed":
+                    raw_value = getattr(result, attribute, None)
+                    value = float(raw_value) if raw_value is not None else 0.0
                 values.append(value)
             axis.bar(names, values, color=color, width=0.58)
             axis.set_title(title, fontsize=11, color="#FFFFFF", fontfamily=BODY_FONT)

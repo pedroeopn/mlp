@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score
 
 from .models import EngineResult, HyperParameters
 
@@ -25,9 +24,8 @@ def _load_black_box_namespace() -> dict[str, object]:
 class CustomMLPEngine:
     def __init__(self) -> None:
         self.namespace = _load_black_box_namespace()
-        self.relu = self.namespace["relu"]
-        self.softmax = self.namespace["softmax"]
         self.mlp_treino = self.namespace["mlp_treino"]
+        self.mlp_teste = self.namespace["mlp_teste"]
 
     def run(
         self,
@@ -38,15 +36,9 @@ class CustomMLPEngine:
         params: HyperParameters,
     ) -> EngineResult:
         result = EngineResult(engine_name="Custom mlp.py", status="running")
-        note_parts: list[str] = []
-
-        if params.learning_rate != 0.01:
-            note_parts.append("The preserved black-box mlp.py uses a fixed learning rate of 0.01.")
-
-        if params.activation_function.lower() != "relu":
-            note_parts.append(
-                "The preserved black-box mlp.py uses ReLU/Softmax internally."
-            )
+        note_parts = [
+            f"Custom hidden={params.hidden_activation.lower()} output={params.output_activation.lower()} lr={params.learning_rate}.",
+        ]
 
         np.random.seed(params.random_seed)
         random.seed(params.random_seed)
@@ -62,62 +54,27 @@ class CustomMLPEngine:
             params.epochs,
             x_train.tolist(),
             y_train.tolist(),
+            params.learning_rate,
+            params.hidden_activation.lower(),
+            params.output_activation.lower(),
         )
         elapsed = time.perf_counter() - start_time
 
-        predictions = np.asarray(
-            [
-                self._predict_row(
-                    row=row,
-                    num_inputs=num_inputs,
-                    num_hidden=params.hidden_neurons,
-                    num_outputs=num_outputs,
-                    weights_v=weights_v,
-                    weights_w=weights_w,
-                )
-                for row in x_test
-            ],
-            dtype=int,
+        accuracy = self.mlp_teste(
+            num_inputs,
+            params.hidden_neurons,
+            num_outputs,
+            len(x_test),
+            x_test.tolist(),
+            y_test.tolist(),
+            weights_v,
+            weights_w,
+            params.hidden_activation.lower(),
+            params.output_activation.lower(),
         )
 
-        result.accuracy = float(accuracy_score(y_test, predictions) * 100.0)
-        result.f1_score = float(
-            f1_score(y_test, predictions, average="weighted", zero_division=0)
-        )
+        result.accuracy = float(accuracy)
         result.training_time = float(elapsed)
         result.status = "completed"
         result.note = " ".join(note_parts)
         return result
-
-    def _predict_row(
-        self,
-        row: np.ndarray,
-        num_inputs: int,
-        num_hidden: int,
-        num_outputs: int,
-        weights_v: np.ndarray,
-        weights_w: np.ndarray,
-    ) -> int:
-        x = np.zeros(num_inputs + 1, dtype=float)
-        z = np.zeros(num_hidden + 1, dtype=float)
-
-        for index in range(num_inputs):
-            x[index] = row[index]
-        x[num_inputs - 1] = 1
-
-        for hidden_index in range(num_hidden):
-            activation_input = 0.0
-            for input_index in range(num_inputs + 1):
-                activation_input += weights_v[input_index][hidden_index] * x[input_index]
-            z[hidden_index] = self.relu(activation_input)
-        z[num_hidden - 1] = 1
-
-        output_input = np.zeros(num_outputs, dtype=float)
-        for output_index in range(num_outputs):
-            for hidden_index in range(num_hidden + 1):
-                output_input[output_index] += (
-                    weights_w[hidden_index][output_index] * z[hidden_index]
-                )
-
-        scores = self.softmax(output_input)
-        return int(np.argmax(scores))

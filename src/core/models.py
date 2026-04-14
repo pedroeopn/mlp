@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 class HyperParameters:
     learning_rate: float
     hidden_neurons: int
-    activation_function: str
+    hidden_activation: str = "relu"
+    output_activation: str = "softmax"
     epochs: int = 400
     random_seed: int = 42
     test_size: float = 0.2
@@ -17,7 +18,6 @@ class HyperParameters:
 class EngineResult:
     engine_name: str
     accuracy: float | None = None
-    f1_score: float | None = None
     training_time: float | None = None
     status: str = "pending"
     note: str = ""

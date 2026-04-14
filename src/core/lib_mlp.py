@@ -4,7 +4,7 @@ import time
 import warnings
 
 from sklearn.exceptions import ConvergenceWarning
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score
 from sklearn.neural_network import MLPClassifier
 
 from .models import EngineResult, HyperParameters
@@ -26,7 +26,7 @@ class SklearnMLPEngine:
         y_test,
         params: HyperParameters,
     ) -> EngineResult:
-        requested_activation = params.activation_function.lower()
+        requested_activation = params.hidden_activation.lower()
         sklearn_activation = SKLEARN_ACTIVATIONS.get(requested_activation, "relu")
 
         classifier = MLPClassifier(
@@ -50,17 +50,17 @@ class SklearnMLPEngine:
         result = EngineResult(
             engine_name="Scikit-Learn",
             accuracy=float(accuracy_score(y_test, predictions) * 100.0),
-            f1_score=float(
-                f1_score(y_test, predictions, average="weighted", zero_division=0)
-            ),
             training_time=float(elapsed),
             status="completed",
             extra={"iterations": str(classifier.n_iter_)},
         )
 
+        notes: list[str] = []
         if requested_activation not in SKLEARN_ACTIVATIONS:
-            result.note = f"Unsupported activation '{params.activation_function}' mapped to ReLU."
-        elif caught_warnings:
-            result.note = str(caught_warnings[-1].message)
+            notes.append(f"Unsupported hidden activation '{params.hidden_activation}' mapped to ReLU.")
+        if caught_warnings:
+            notes.append(str(caught_warnings[-1].message))
+
+        result.note = " ".join(notes)
 
         return result

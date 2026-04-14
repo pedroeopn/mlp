@@ -38,7 +38,7 @@ class ResultCard(ctk.CTkFrame):
 
         self.metrics_label = ctk.CTkLabel(
             self,
-            text="Acc  --\nF1   --\nTime --",
+            text="Acc  --\nTime --",
             justify="left",
             text_color="#FFFFFF",
             font=ctk.CTkFont(family=BODY_FONT, size=16),
@@ -58,7 +58,7 @@ class ResultCard(ctk.CTkFrame):
     def update_result(self, result: EngineResult | None) -> None:
         if result is None or result.status == "pending":
             self.status_label.configure(text="Idle", text_color="#B5B5B5")
-            self.metrics_label.configure(text="Acc  --\nF1   --\nTime --")
+            self.metrics_label.configure(text="Acc  --\nTime --")
             self.note_label.configure(text="Waiting.")
             return
 
@@ -75,14 +75,13 @@ class ResultCard(ctk.CTkFrame):
 
         if result.status == "completed":
             metrics_text = (
-                f"Acc  {result.accuracy:.2f}%\n"
-                f"F1   {result.f1_score:.4f}\n"
-                f"Time {result.training_time:.3f}s"
+                f"Acc  {self._format_metric(result.accuracy, '.2f', suffix='%')}\n"
+                f"Time {self._format_metric(result.training_time, '.3f', suffix='s')}"
             )
             if "iterations" in result.extra:
                 metrics_text += f"\nIter {result.extra['iterations']}"
         else:
-            metrics_text = "Acc  --\nF1   --\nTime --"
+            metrics_text = "Acc  --\nTime --"
 
         self.metrics_label.configure(text=metrics_text)
 
@@ -92,3 +91,9 @@ class ResultCard(ctk.CTkFrame):
             note_text = result.note or "Done."
 
         self.note_label.configure(text=note_text)
+
+    @staticmethod
+    def _format_metric(value: float | None, specifier: str, suffix: str = "") -> str:
+        if value is None:
+            return "--"
+        return f"{value:{specifier}}{suffix}"

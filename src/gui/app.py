@@ -139,8 +139,9 @@ class ComparativeMLPApp(ctk.CTk):
             params = HyperParameters(
                 learning_rate=float(self.controls.learning_rate_var.get()),
                 hidden_neurons=int(self.controls.hidden_neurons_var.get()),
+                hidden_activation=self.controls.hidden_activation_var.get(),
+                output_activation=self.controls.output_activation_var.get(),
                 epochs=int(self.controls.epochs_var.get()),
-                activation_function=self.controls.activation_var.get(),
             )
         except ValueError:
             messagebox.showerror("Invalid input", "Use numeric values for rate, neurons, and epochs.")
@@ -174,13 +175,25 @@ class ComparativeMLPApp(ctk.CTk):
             except Empty:
                 break
 
-            if item_key == CONTROL_KEY and isinstance(payload, SessionEvent):
-                self._handle_session_event(payload)
-                continue
+            try:
+                if item_key == CONTROL_KEY and isinstance(payload, SessionEvent):
+                    self._handle_session_event(payload)
+                    continue
 
-            if isinstance(payload, EngineResult):
-                self.results[item_key] = payload
-                self._render_result(item_key, payload)
+                if isinstance(payload, EngineResult):
+                    self.results[item_key] = payload
+                    self._render_result(item_key, payload)
+            except Exception as exc:
+                self.controls.set_running(False)
+                self.controls.set_status(f"UI update failed: {exc}")
+                if item_key in self.cards and isinstance(payload, EngineResult):
+                    failed_result = EngineResult(
+                        engine_name=payload.engine_name,
+                        status="failed",
+                        note=f"UI could not render the engine result: {exc}",
+                    )
+                    self.results[item_key] = failed_result
+                    self._render_result(item_key, failed_result)
 
         self.after(150, self._poll_results)
 

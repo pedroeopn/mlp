@@ -34,14 +34,14 @@ def ler_Arquivo(arquivo):
             classes.append(int(aux3) - 1)
         return atributos, classes
 
-def mlp_treino(nx,nz,ny,tempo,d,cl):
+def mlp_treino(nx,nz,ny,tempo,d,cl,alfa_input=0.01,ativacao_oculta="relu",ativacao_saida="softmax"):
    x = np.zeros(nx+1,float)
    y = np.zeros(ny,float)
    z = np.zeros(nz+1,float)
    dy = np.zeros(ny,float)
    dz = np.zeros(nz,float)
    #alfa = 0.4 # SIGMOIDE
-   alfa = 0.01 # RELU/SOFTMAX
+   alfa = alfa_input # RELU/SOFTMAX
    
    # PASSO 0
    # PESOS - SIGMOIDE
@@ -65,43 +65,49 @@ def mlp_treino(nx,nz,ny,tempo,d,cl):
            z[j] = 0
            for i in range(nx+1):
                u_z[j] += v[i][j]*x[i]
-           #z[j] = sigmoide(u_z[j])
-           z[j] = relu(u_z[j])
+           if ativacao_oculta == "sigmoid":
+               z[j] = sigmoide(u_z[j])
+           else:
+               z[j] = relu(u_z[j])
        z[nz-1] = 1
-       """
-       # PASSOS 6, 7, 8 - SIGMOIDE
-       sr = np.zeros(ny,int)
-       for k in range(ny):
-           y[k] = 0
-           for j in range(nz+1):
-               y[k] += w[j][k]*z[j]
-           y[k] = sigmoide(y[k])
-           # PASSO 8 - saída da MLP    
-           if y[k]>=0.5:
-               sr[k] = 1
-       """
-       # PASSOS 6, 7, 8 - SOFTMAX
-       u = np.zeros(ny)
-       for k in range(ny):
-           for j in range(nz+1):
-               u[k] += w[j][k]*z[j]
-       y = softmax(u)
-       # saída da rede
-       sr = np.zeros(ny, int)
-       classe_pred = np.argmax(y)
-       sr[classe_pred] = 1
+       if ativacao_saida == "sigmoid":
+           # PASSOS 6, 7, 8 - SIGMOIDE
+           sr = np.zeros(ny,int)
+           for k in range(ny):
+               y[k] = 0
+               for j in range(nz+1):
+                   y[k] += w[j][k]*z[j]
+               y[k] = sigmoide(y[k])
+               # PASSO 8 - saída da MLP    
+               if y[k]>=0.5:
+                   sr[k] = 1
+       else:
+           # PASSOS 6, 7, 8 - SOFTMAX
+           u = np.zeros(ny)
+           for k in range(ny):
+               for j in range(nz+1):
+                   u[k] += w[j][k]*z[j]
+           y = softmax(u)
+           # saída da rede
+           sr = np.zeros(ny, int)
+           classe_pred = np.argmax(y)
+           sr[classe_pred] = 1
        
        # PASSO 9
        for k in range(ny):
-           dy[k] = (se[k] - y[k])
-           #dy[k] = (se[k]-sr[k])*d_sigmoide(y[k])
+           if ativacao_saida == "sigmoid":
+               dy[k] = (se[k]-sr[k])*d_sigmoide(y[k])
+           else:
+               dy[k] = (se[k] - y[k])
       
        for j in range(nz):
            dz[j] = 0
            for k in range(ny):
                dz[j] += dy[k]*w[j][k]
-               #dz[j] = dz[j]*d_sigmoide(z[j])
-               dz[j] = dz[j] * d_softmax(u_z[j])
+               if ativacao_oculta == "sigmoid":
+                   dz[j] = dz[j]*d_sigmoide(z[j])
+               else:
+                   dz[j] = dz[j] * d_softmax(u_z[j])
        
        for i in range(nx+1):
            for j in range(nz):
@@ -112,7 +118,18 @@ def mlp_treino(nx,nz,ny,tempo,d,cl):
    return v,w
 
 
-def mlp_teste(nx,nz,ny,ns,d,cl,v,w):
+def mlp_teste(
+    nx,
+    nz,
+    ny,
+    ns,
+    d,
+    cl,
+    v,
+    w,
+    ativacao_oculta="relu",
+    ativacao_saida="softmax",
+):
    x = np.zeros(nx+1,float)
    y = np.zeros(ny,float)
    z = np.zeros(nz+1,float)
@@ -132,31 +149,33 @@ def mlp_teste(nx,nz,ny,ns,d,cl,v,w):
            z[j] = 0
            for i in range(nx+1):
                z[j] += v[i][j]*x[i]
-           #z[j] = sigmoide(z[j])
-           z[j] = relu(z[j])
+           if ativacao_oculta == "sigmoid":
+               z[j] = sigmoide(z[j])
+           else:
+               z[j] = relu(z[j])
        z[nz-1] = 1
-       """
-       # PASSOS 6,7,8 - SIGMOIDE
-       sr = np.zeros(ny,int)
-       for k in range(ny):
-           y[k] = 0
-           for j in range(nz+1):
-               y[k] += w[j][k]*z[j]
-           y[k] = sigmoide(y[k])
-           if y[k]>=0.5:
-               sr[k] = 1
-       """
-       u = np.zeros(ny)
-       for k in range(ny):
-           for j in range(nz+1):
-               u[k] += w[j][k]*z[j]
-       y = softmax(u)
+       if ativacao_saida == "sigmoid":
+           # PASSOS 6,7,8 - SIGMOIDE
+           sr = np.zeros(ny,int)
+           for k in range(ny):
+               y[k] = 0
+               for j in range(nz+1):
+                   y[k] += w[j][k]*z[j]
+               y[k] = sigmoide(y[k])
+               if y[k]>=0.5:
+                   sr[k] = 1
+       else:
+           u = np.zeros(ny)
+           for k in range(ny):
+               for j in range(nz+1):
+                   u[k] += w[j][k]*z[j]
+           y = softmax(u)
        
-       # saída da rede
-       sr = np.zeros(ny, int)
-       classe_pred = np.argmax(y)
-       sr[classe_pred] = 1
-       
+           # saída da rede
+           sr = np.zeros(ny, int)
+           classe_pred = np.argmax(y)
+           sr[classe_pred] = 1
+
        acertou = True
        for k in range(ny):
            if se[k]!=sr[k]:

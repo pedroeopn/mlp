@@ -97,14 +97,9 @@ def execute_weka_mlp(
     return EngineResult(
         engine_name="Weka",
         accuracy=parsed.get("accuracy"),
-        f1_score=parsed.get("f1_score"),
         training_time=parsed.get("training_time", float(elapsed)),
         status="completed" if parsed.get("accuracy") is not None else "failed",
-        note=(
-            "Weka MultilayerPerceptron does not expose a matching activation selector."
-            if params.activation_function.lower() != "sigmoid"
-            else ""
-        ),
+        note="",
         raw_output=raw_output,
     )
 
@@ -112,28 +107,25 @@ def execute_weka_mlp(
 def parse_weka_output(output_text: str) -> dict[str, float]:
     parsed: dict[str, float] = {}
 
-    accuracy_match = re.search(
-        r"Correctly Classified Instances\s+\d+\s+([\d.]+)\s*%",
+    accuracy_matches = re.findall(
+        r"Correctly Classified Instances\s+\d+\s+([\d.,]+)\s*%",
         output_text,
     )
-    if accuracy_match:
-        parsed["accuracy"] = float(accuracy_match.group(1))
+    if accuracy_matches:
+        parsed["accuracy"] = _parse_weka_number(accuracy_matches[-1])
 
     training_time_match = re.search(
-        r"Time taken to build model:\s*([\d.]+)\s*seconds",
+        r"Time taken to build model:\s*([\d.,]+)\s*seconds",
         output_text,
     )
     if training_time_match:
-        parsed["training_time"] = float(training_time_match.group(1))
-
-    weighted_match = re.search(
-        r"Weighted Avg\.\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+([\d.]+)",
-        output_text,
-    )
-    if weighted_match:
-        parsed["f1_score"] = float(weighted_match.group(1))
+        parsed["training_time"] = _parse_weka_number(training_time_match.group(1))
 
     return parsed
+
+
+def _parse_weka_number(value: str) -> float:
+    return float(value.replace(",", "."))
 
 
 def write_split_to_arff(

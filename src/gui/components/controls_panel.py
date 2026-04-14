@@ -25,7 +25,8 @@ class ControlsPanel(ctk.CTkFrame):
         self.learning_rate_var = StringVar(value="0.01")
         self.hidden_neurons_var = StringVar(value="12")
         self.epochs_var = StringVar(value="400")
-        self.activation_var = StringVar(value="relu")
+        self.hidden_activation_var = StringVar(value="relu")
+        self.output_activation_var = StringVar(value="softmax")
         self.dataset_var = StringVar()
         self.status_var = StringVar(value="Ready")
 
@@ -57,17 +58,17 @@ class ControlsPanel(ctk.CTkFrame):
         self._add_entry("Hidden Neurons", self.hidden_neurons_var, 4)
         self._add_entry("Epochs", self.epochs_var, 6)
 
-        activation_label = ctk.CTkLabel(
+        hidden_activation_label = ctk.CTkLabel(
             self,
-            text="Activation",
+            text="Hidden Activation (valid for Custom and Scikit)",
             font=ctk.CTkFont(family=BODY_FONT, size=15),
             text_color="#F2F2F2",
         )
-        activation_label.grid(row=8, column=0, padx=24, pady=(18, 8), sticky="w")
-        activation_menu = ctk.CTkOptionMenu(
+        hidden_activation_label.grid(row=8, column=0, padx=24, pady=(18, 8), sticky="w")
+        hidden_activation_menu = ctk.CTkOptionMenu(
             self,
-            variable=self.activation_var,
-            values=["relu", "sigmoid", "softmax"],
+            variable=self.hidden_activation_var,
+            values=["relu", "sigmoid"],
             font=ctk.CTkFont(family=BODY_FONT, size=14),
             fg_color="#101010",
             button_color="#B6B5B5",
@@ -76,7 +77,38 @@ class ControlsPanel(ctk.CTkFrame):
             text_color="#FFFFFF",
             dropdown_text_color="#FFFFFF",
         )
-        activation_menu.grid(row=9, column=0, padx=24, sticky="ew")
+        hidden_activation_menu.grid(row=9, column=0, padx=24, sticky="ew")
+
+        output_activation_label = ctk.CTkLabel(
+            self,
+            text="Output Activation (valid for Custom)",
+            font=ctk.CTkFont(family=BODY_FONT, size=15),
+            text_color="#F2F2F2",
+        )
+        output_activation_label.grid(row=10, column=0, padx=24, pady=(18, 8), sticky="w")
+        output_activation_menu = ctk.CTkOptionMenu(
+            self,
+            variable=self.output_activation_var,
+            values=["softmax", "sigmoid"],
+            font=ctk.CTkFont(family=BODY_FONT, size=14),
+            fg_color="#101010",
+            button_color="#B6B5B5",
+            button_hover_color="#D9D9D9",
+            dropdown_fg_color="#111111",
+            text_color="#FFFFFF",
+            dropdown_text_color="#FFFFFF",
+        )
+        output_activation_menu.grid(row=11, column=0, padx=24, sticky="ew")
+
+        shared_hint = ctk.CTkLabel(
+            self,
+            text="Learning Rate, Hidden Neurons, and Epochs are valid for Custom, Scikit, and Weka.",
+            wraplength=280,
+            justify="left",
+            font=ctk.CTkFont(family=BODY_FONT, size=12),
+            text_color="#8F8F8F",
+        )
+        shared_hint.grid(row=12, column=0, padx=24, pady=(8, 6), sticky="w")
 
         dataset_label = ctk.CTkLabel(
             self,
@@ -84,7 +116,7 @@ class ControlsPanel(ctk.CTkFrame):
             font=ctk.CTkFont(family=BODY_FONT, size=15),
             text_color="#F2F2F2",
         )
-        dataset_label.grid(row=10, column=0, padx=24, pady=(18, 8), sticky="w")
+        dataset_label.grid(row=13, column=0, padx=24, pady=(18, 8), sticky="w")
         dataset_entry = ctk.CTkEntry(
             self,
             textvariable=self.dataset_var,
@@ -93,10 +125,10 @@ class ControlsPanel(ctk.CTkFrame):
             border_color="#383838",
             text_color="#FFFFFF",
         )
-        dataset_entry.grid(row=11, column=0, padx=24, sticky="ew")
+        dataset_entry.grid(row=14, column=0, padx=24, sticky="ew")
 
         buttons = ctk.CTkFrame(self, fg_color="transparent")
-        buttons.grid(row=12, column=0, padx=24, pady=(28, 10), sticky="ew")
+        buttons.grid(row=15, column=0, padx=24, pady=(28, 10), sticky="ew")
         buttons.grid_columnconfigure((0, 1), weight=1)
 
         self.run_button = ctk.CTkButton(
@@ -130,7 +162,7 @@ class ControlsPanel(ctk.CTkFrame):
             font=ctk.CTkFont(family=BODY_FONT, size=11, weight="bold"),
             text_color="#AFAFAF",
         )
-        status_tag.grid(row=13, column=0, padx=24, pady=(10, 2), sticky="w")
+        status_tag.grid(row=16, column=0, padx=24, pady=(10, 2), sticky="w")
 
         status_label = ctk.CTkLabel(
             self,
@@ -140,17 +172,27 @@ class ControlsPanel(ctk.CTkFrame):
             font=ctk.CTkFont(family=BODY_FONT, size=14),
             text_color="#FFFFFF",
         )
-        status_label.grid(row=14, column=0, padx=24, pady=(0, 10), sticky="w")
+        status_label.grid(row=17, column=0, padx=24, pady=(0, 10), sticky="w")
 
-        hint = ctk.CTkLabel(
+        comparison_hint = ctk.CTkLabel(
             self,
-            text="Needs `bin/weka.jar`.",
+            text="All three engines use the same split from this app: test size 20% and seed 42.",
             wraplength=280,
             justify="left",
             font=ctk.CTkFont(family=BODY_FONT, size=13),
             text_color="#8F8F8F",
         )
-        hint.grid(row=15, column=0, padx=24, pady=(0, 24), sticky="w")
+        comparison_hint.grid(row=18, column=0, padx=24, pady=(0, 14), sticky="w")
+
+        weka_hint = ctk.CTkLabel(
+            self,
+            text="Weka ignores both activation selectors and needs `bin/weka.jar`.",
+            wraplength=280,
+            justify="left",
+            font=ctk.CTkFont(family=BODY_FONT, size=13),
+            text_color="#8F8F8F",
+        )
+        weka_hint.grid(row=19, column=0, padx=24, pady=(0, 24), sticky="w")
 
     def _add_entry(self, label_text: str, variable: StringVar, row: int) -> None:
         label = ctk.CTkLabel(
