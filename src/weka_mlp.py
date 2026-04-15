@@ -10,7 +10,7 @@ import numpy as np
 
 from .models import EngineResult, HyperParameters
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_WEKA_JAR = ROOT_DIR / "bin" / "weka.jar"
 
 

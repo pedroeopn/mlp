@@ -62,5 +62,4 @@ class SklearnMLPEngine:
             notes.append(str(caught_warnings[-1].message))
 
         result.note = " ".join(notes)
-
         return result

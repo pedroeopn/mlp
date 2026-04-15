@@ -5,7 +5,7 @@ from pathlib import Path
 
 def main() -> int:
     try:
-        from src.gui.app import ComparativeMLPApp
+        from src.app import ComparativeMLPApp
     except ModuleNotFoundError as exc:
         missing = getattr(exc, "name", "dependency")
         print(
@@ -15,7 +15,7 @@ def main() -> int:
         return 1
 
     root_dir = Path(__file__).resolve().parents[1]
-    dataset_path = root_dir / "src" / "data" / "dados.data-numeric"
+    dataset_path = root_dir / "src" / "dados.data-numeric"
     weka_jar_path = root_dir / "bin" / "weka.jar"
 
     app = ComparativeMLPApp(dataset_path=dataset_path, weka_jar_path=weka_jar_path)
