@@ -7,7 +7,7 @@ import shutil
 import threading
 import time
 from pathlib import Path
-from tempfile import mkdtemp
+from tempfile import TemporaryDirectory
 
 import numpy as np
 
@@ -41,6 +41,7 @@ def create_comparison_state(
         "processes": {},
         "cancel_requested": threading.Event(),
         "active": False,
+        "temp_dir_handle": None,
         "temp_dir": None,
         "lock": threading.Lock(),
     }
@@ -59,9 +60,8 @@ def start_comparison(state: dict, params: HyperParameters) -> None:
     try:
         features, labels = load_numeric_dataset(state["dataset_path"])
         split = split_dataset(features, labels, params)
-        data_dir = Path("data")
-        data_dir.mkdir(exist_ok=True)
-        state["temp_dir"] = Path(mkdtemp(prefix="weka_arff_", dir=str(data_dir)))
+        state["temp_dir_handle"] = TemporaryDirectory(prefix="weka_arff_")
+        state["temp_dir"] = Path(state["temp_dir_handle"].name)
 
         train_arff = write_split_to_arff(
             split.x_train,
@@ -251,8 +251,11 @@ def _emit_missing_results(state: dict, delivered: set[str], status: str, note: s
 
 
 def _cleanup_temp_dir(state: dict) -> None:
-    if state["temp_dir"] and state["temp_dir"].exists():
+    if state["temp_dir_handle"] is not None:
+        state["temp_dir_handle"].cleanup()
+    elif state["temp_dir"] and state["temp_dir"].exists():
         shutil.rmtree(state["temp_dir"], ignore_errors=True)
+    state["temp_dir_handle"] = None
     state["temp_dir"] = None
 
 
