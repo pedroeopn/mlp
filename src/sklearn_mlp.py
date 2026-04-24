@@ -4,7 +4,7 @@ import time
 import warnings
 
 from sklearn.exceptions import ConvergenceWarning
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.neural_network import MLPClassifier
 
 from .models import EngineResult, HyperParameters
@@ -46,10 +46,19 @@ class SklearnMLPEngine:
             classifier.fit(x_train, y_train)
         elapsed = time.perf_counter() - start_time
         predictions = classifier.predict(x_test)
+        precision, recall, f1_score, _ = precision_recall_fscore_support(
+            y_test,
+            predictions,
+            average="weighted",
+            zero_division=0,
+        )
 
         result = EngineResult(
             engine_name="Scikit-Learn",
             accuracy=float(accuracy_score(y_test, predictions) * 100.0),
+            precision=float(precision * 100.0),
+            recall=float(recall * 100.0),
+            f1_score=float(f1_score * 100.0),
             training_time=float(elapsed),
             status="completed",
             extra={"iterations": str(classifier.n_iter_)},

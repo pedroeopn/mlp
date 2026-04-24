@@ -277,7 +277,7 @@ class ResultCard(ctk.CTkFrame):
     def update_result(self, result: EngineResult | None) -> None:
         if result is None or result.status == "pending":
             self.status_label.configure(text="Idle", text_color="#B5B5B5")
-            self.metrics_label.configure(text="Acc  --\nTime --")
+            self.metrics_label.configure(text="Acc  --\nPrec --\nRec  --\nF1   --\nTime --")
             self.note_label.configure(text="Waiting.")
             return
 
@@ -294,12 +294,15 @@ class ResultCard(ctk.CTkFrame):
         if result.status == "completed":
             metrics_text = (
                 f"Acc  {self._format_metric(result.accuracy, '.2f', suffix='%')}\n"
+                f"Prec {self._format_metric(result.precision, '.2f', suffix='%')}\n"
+                f"Rec  {self._format_metric(result.recall, '.2f', suffix='%')}\n"
+                f"F1   {self._format_metric(result.f1_score, '.2f', suffix='%')}\n"
                 f"Time {self._format_metric(result.training_time, '.3f', suffix='s')}"
             )
             if "iterations" in result.extra:
                 metrics_text += f"\nIter {result.extra['iterations']}"
         else:
-            metrics_text = "Acc  --\nTime --"
+            metrics_text = "Acc  --\nPrec --\nRec  --\nF1   --\nTime --"
 
         self.metrics_label.configure(text=metrics_text)
         self.note_label.configure(text="Running..." if result.status == "running" else (result.note or "Done."))

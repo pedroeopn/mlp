@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
 
 from .models import EngineResult, HyperParameters, SessionEvent
 from .sklearn_mlp import SklearnMLPEngine
@@ -267,10 +268,91 @@ def _load_black_box_namespace() -> dict[str, object]:
     return namespace
 
 
+def _custom_mlp_forward(
+    sample,
+    nx: int,
+    nz: int,
+    ny: int,
+    weights_v,
+    weights_w,
+    namespace: dict[str, object],
+    hidden_activation: str,
+    output_activation: str,
+):
+    x = np.zeros(nx + 1, float)
+    z = np.zeros(nz + 1, float)
+    y = np.zeros(ny, float)
+
+    sigmoid = namespace["sigmoide"]
+    relu = namespace["relu"]
+    softmax = namespace["softmax"]
+
+    for i in range(nx):
+        x[i] = sample[i]
+    x[nx - 1] = 1
+
+    for j in range(nz):
+        for i in range(nx + 1):
+            z[j] += weights_v[i][j] * x[i]
+        if hidden_activation == "sigmoid":
+            z[j] = sigmoid(z[j])
+        else:
+            z[j] = relu(z[j])
+
+    z[nz - 1] = 1
+
+    if output_activation == "sigmoid":
+        for k in range(ny):
+            for j in range(nz + 1):
+                y[k] += weights_w[j][k] * z[j]
+            y[k] = sigmoid(y[k])
+        return y
+
+    logits = np.zeros(ny)
+    for k in range(ny):
+        for j in range(nz + 1):
+            logits[k] += weights_w[j][k] * z[j]
+    return softmax(logits)
+
+
+def _custom_mlp_predict(
+    x_test,
+    nx: int,
+    nz: int,
+    ny: int,
+    weights_v,
+    weights_w,
+    namespace: dict[str, object],
+    hidden_activation: str,
+    output_activation: str,
+):
+    predictions: list[int] = []
+    for sample in x_test:
+        output = _custom_mlp_forward(
+            sample,
+            nx,
+            nz,
+            ny,
+            weights_v,
+            weights_w,
+            namespace,
+            hidden_activation,
+            output_activation,
+        )
+        if output_activation == "sigmoid":
+            if ny == 1:
+                prediction = 1 if output[0] >= 0.5 else 0
+            else:
+                prediction = int(np.argmax(output >= 0.5))
+        else:
+            prediction = int(np.argmax(output))
+        predictions.append(prediction)
+    return predictions
+
+
 def run_custom_mlp(x_train, y_train, x_test, y_test, params: HyperParameters) -> EngineResult:
     namespace = _load_black_box_namespace()
     mlp_treino = namespace["mlp_treino"]
-    mlp_teste = namespace["mlp_teste"]
 
     np.random.seed(params.random_seed)
     random.seed(params.random_seed)
@@ -292,22 +374,32 @@ def run_custom_mlp(x_train, y_train, x_test, y_test, params: HyperParameters) ->
     )
     elapsed = time.perf_counter() - start_time
 
-    accuracy = mlp_teste(
+    predictions = _custom_mlp_predict(
+        x_test.tolist(),
         num_inputs,
         params.hidden_neurons,
         num_outputs,
-        len(x_test),
-        x_test.tolist(),
-        y_test.tolist(),
         weights_v,
         weights_w,
+        namespace,
         params.hidden_activation.lower(),
         params.output_activation.lower(),
     )
+    accuracy = accuracy_score(y_test, predictions) * 100.0
+    precision, recall, f1_score, _ = precision_recall_fscore_support(
+        y_test,
+        predictions,
+        average="weighted",
+        zero_division=0,
+    )
+    custom_confusion_matrix = confusion_matrix(y_test, predictions)
 
     return EngineResult(
         engine_name="Custom mlp.py",
         accuracy=float(accuracy),
+        precision=float(precision * 100.0),
+        recall=float(recall * 100.0),
+        f1_score=float(f1_score * 100.0),
         training_time=float(elapsed),
         status="completed",
         note=(
@@ -315,4 +407,7 @@ def run_custom_mlp(x_train, y_train, x_test, y_test, params: HyperParameters) ->
             f"output={params.output_activation.lower()} "
             f"lr={params.learning_rate}."
         ),
+        extra={
+            "confusion_matrix": np.array2string(custom_confusion_matrix, separator=", "),
+        },
     )

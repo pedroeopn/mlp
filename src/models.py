@@ -18,6 +18,9 @@ class HyperParameters:
 class EngineResult:
     engine_name: str
     accuracy: float | None = None
+    precision: float | None = None
+    recall: float | None = None
+    f1_score: float | None = None
     training_time: float | None = None
     status: str = "pending"
     note: str = ""

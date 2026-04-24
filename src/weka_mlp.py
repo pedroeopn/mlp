@@ -97,6 +97,9 @@ def execute_weka_mlp(
     return EngineResult(
         engine_name="Weka",
         accuracy=parsed.get("accuracy"),
+        precision=parsed.get("precision"),
+        recall=parsed.get("recall"),
+        f1_score=parsed.get("f1_score"),
         training_time=parsed.get("training_time", float(elapsed)),
         status="completed" if parsed.get("accuracy") is not None else "failed",
         note="",
@@ -120,6 +123,16 @@ def parse_weka_output(output_text: str) -> dict[str, float]:
     )
     if training_time_match:
         parsed["training_time"] = _parse_weka_number(training_time_match.group(1))
+
+    weighted_average_match = re.search(
+        r"Weighted Avg\.\s+[\d.,]+\s+[\d.,]+\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)",
+        output_text,
+        re.IGNORECASE,
+    )
+    if weighted_average_match:
+        parsed["precision"] = _parse_weka_number(weighted_average_match.group(1)) * 100.0
+        parsed["recall"] = _parse_weka_number(weighted_average_match.group(2)) * 100.0
+        parsed["f1_score"] = _parse_weka_number(weighted_average_match.group(3)) * 100.0
 
     return parsed
 
