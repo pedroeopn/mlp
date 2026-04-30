@@ -185,8 +185,18 @@ def mlp_teste(
            ac += 1
    return 100.*ac/ns
 
+def calcular_acuracia(classes_reais, classes_previstas):
+   acertos = 0
+   total = len(classes_reais)
+   if total == 0:
+      return 0.0
+   for real, previsto in zip(classes_reais, classes_previstas):
+      if real == previsto:
+         acertos += 1
+   return 100.*acertos/total
+
 # MÓDULO PRINCIPAL
-arquivo = "dados.data-numeric"
+arquivo = "data/dados.data-numeric"
 d,cl = ler_Arquivo(arquivo)
 
 def normalizar_Dados(atributos):

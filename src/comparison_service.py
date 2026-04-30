@@ -3,24 +3,20 @@ from __future__ import annotations
 import multiprocessing as mp
 import queue
 import random
-import shutil
 import threading
 import time
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import numpy as np
-from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 
-from .models import EngineResult, HyperParameters, SessionEvent
-from .sklearn_mlp import SklearnMLPEngine
+from .schemas import EngineResult, HyperParameters, SessionEvent
+from .sklearn_mlp import run_sklearn_mlp
 from .utils import load_numeric_dataset, split_dataset
-from .weka_mlp import execute_weka_mlp, write_split_to_arff
 
 ENGINE_NAMES = {
-    "custom": "Custom mlp.py",
+    "custom": "Custom",
     "sklearn": "Scikit-Learn",
-    "weka": "Weka",
 }
 CONTROL_KEY = "__session__"
 SRC_DIR = Path(__file__).resolve().parent
@@ -28,13 +24,9 @@ BLACK_BOX_MLP_PATH = SRC_DIR / "mlp.py"
 SOURCE_SPLIT_MARKER = "# MÓDULO PRINCIPAL"
 
 
-def create_comparison_state(
-    dataset_path: str | Path,
-    weka_jar_path: str | Path | None = None,
-) -> dict:
+def create_comparison_state(dataset_path: str | Path) -> dict:
     return {
         "dataset_path": Path(dataset_path),
-        "weka_jar_path": Path(weka_jar_path) if weka_jar_path else Path("bin/weka.jar"),
         "result_queue": queue.Queue(),
         "mp_context": mp.get_context("spawn"),
         "mp_queue": None,
@@ -42,8 +34,6 @@ def create_comparison_state(
         "processes": {},
         "cancel_requested": threading.Event(),
         "active": False,
-        "temp_dir_handle": None,
-        "temp_dir": None,
         "lock": threading.Lock(),
     }
 
@@ -60,35 +50,16 @@ def start_comparison(state: dict, params: HyperParameters) -> None:
 
     try:
         features, labels = load_numeric_dataset(state["dataset_path"])
-        split = split_dataset(features, labels, params)
-        state["temp_dir_handle"] = TemporaryDirectory(prefix="weka_arff_")
-        state["temp_dir"] = Path(state["temp_dir_handle"].name)
-
-        train_arff = write_split_to_arff(
-            split.x_train,
-            split.y_train,
-            state["temp_dir"] / "train.arff",
-            relation_name="train_split",
-        )
-        test_arff = write_split_to_arff(
-            split.x_test,
-            split.y_test,
-            state["temp_dir"] / "test.arff",
-            relation_name="test_split",
-        )
+        x_train, x_test, y_train, y_test = split_dataset(features, labels, params)
 
         workers = {
             "custom": state["mp_context"].Process(
                 target=_run_custom_worker,
-                args=(state["mp_queue"], split.x_train, split.y_train, split.x_test, split.y_test, params),
+                args=(state["mp_queue"], x_train, y_train, x_test, y_test, params),
             ),
             "sklearn": state["mp_context"].Process(
                 target=_run_sklearn_worker,
-                args=(state["mp_queue"], split.x_train, split.y_train, split.x_test, split.y_test, params),
-            ),
-            "weka": state["mp_context"].Process(
-                target=_run_weka_worker,
-                args=(state["mp_queue"], train_arff, test_arff, params, state["weka_jar_path"]),
+                args=(state["mp_queue"], x_train, y_train, x_test, y_test, params),
             ),
         }
 
@@ -105,7 +76,6 @@ def start_comparison(state: dict, params: HyperParameters) -> None:
         state["collector_thread"].start()
     except Exception as exc:
         state["active"] = False
-        _cleanup_temp_dir(state)
         for engine_key in ENGINE_NAMES:
             state["result_queue"].put((engine_key, _build_failure_result(engine_key, str(exc))))
         state["result_queue"].put(
@@ -148,18 +118,10 @@ def _run_custom_worker(result_queue, x_train, y_train, x_test, y_test, params) -
 
 def _run_sklearn_worker(result_queue, x_train, y_train, x_test, y_test, params) -> None:
     try:
-        result = SklearnMLPEngine().run(x_train, y_train, x_test, y_test, params)
+        result = run_sklearn_mlp(x_train, y_train, x_test, y_test, params)
     except Exception as exc:  # pragma: no cover
         result = _build_failure_result("sklearn", str(exc))
     result_queue.put(("sklearn", result))
-
-
-def _run_weka_worker(result_queue, train_arff_path, test_arff_path, params, weka_jar_path) -> None:
-    try:
-        result = execute_weka_mlp(train_arff_path, test_arff_path, params, weka_jar_path)
-    except Exception as exc:  # pragma: no cover
-        result = _build_failure_result("weka", str(exc))
-    result_queue.put(("weka", result))
 
 
 def _collect_results(state: dict) -> None:
@@ -217,8 +179,6 @@ def _collect_results(state: dict) -> None:
             state["mp_queue"].close()
             state["mp_queue"].join_thread()
 
-        _cleanup_temp_dir(state)
-
         with state["lock"]:
             state["active"] = False
 
@@ -249,15 +209,6 @@ def _emit_missing_results(state: dict, delivered: set[str], status: str, note: s
             )
         )
         delivered.add(engine_key)
-
-
-def _cleanup_temp_dir(state: dict) -> None:
-    if state["temp_dir_handle"] is not None:
-        state["temp_dir_handle"].cleanup()
-    elif state["temp_dir"] and state["temp_dir"].exists():
-        shutil.rmtree(state["temp_dir"], ignore_errors=True)
-    state["temp_dir_handle"] = None
-    state["temp_dir"] = None
 
 
 def _load_black_box_namespace() -> dict[str, object]:
@@ -353,6 +304,7 @@ def _custom_mlp_predict(
 def run_custom_mlp(x_train, y_train, x_test, y_test, params: HyperParameters) -> EngineResult:
     namespace = _load_black_box_namespace()
     mlp_treino = namespace["mlp_treino"]
+    calcular_acuracia = namespace["calcular_acuracia"]
 
     np.random.seed(params.random_seed)
     random.seed(params.random_seed)
@@ -385,7 +337,7 @@ def run_custom_mlp(x_train, y_train, x_test, y_test, params: HyperParameters) ->
         params.hidden_activation.lower(),
         params.output_activation.lower(),
     )
-    accuracy = accuracy_score(y_test, predictions) * 100.0
+    accuracy = calcular_acuracia(y_test.tolist(), predictions)
     precision, recall, f1_score, _ = precision_recall_fscore_support(
         y_test,
         predictions,
@@ -405,7 +357,9 @@ def run_custom_mlp(x_train, y_train, x_test, y_test, params: HyperParameters) ->
         note=(
             f"Custom hidden={params.hidden_activation.lower()} "
             f"output={params.output_activation.lower()} "
-            f"lr={params.learning_rate}."
+            f"lr={params.learning_rate}. "
+            "Accuracy from mlp.py using the same predictions shown here; "
+            "precision, recall, F1, and confusion matrix from Scikit-Learn."
         ),
         extra={
             "confusion_matrix": np.array2string(custom_confusion_matrix, separator=", "),

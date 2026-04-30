@@ -15,10 +15,9 @@ def main() -> int:
         return 1
 
     root_dir = Path(__file__).resolve().parents[1]
-    dataset_path = root_dir / "src" / "dados.data-numeric"
-    weka_jar_path = root_dir / "bin" / "weka.jar"
+    dataset_path = root_dir / "data" / "dados.data-numeric"
 
-    app = ComparativeMLPApp(dataset_path=dataset_path, weka_jar_path=weka_jar_path)
+    app = ComparativeMLPApp(dataset_path=dataset_path)
     app.mainloop()
     return 0
 

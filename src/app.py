@@ -8,7 +8,7 @@ import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from src.models import EngineResult, HyperParameters, SessionEvent
+from src.schemas import DEFAULT_HYPERPARAMETERS, EngineResult, HyperParameters, SessionEvent
 from src.comparison_service import (
     CONTROL_KEY,
     create_comparison_state,
@@ -19,11 +19,10 @@ from src.comparison_service import (
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-ENGINE_ORDER = ["custom", "sklearn", "weka"]
+ENGINE_ORDER = ["custom", "sklearn"]
 ENGINE_TITLES = {
-    "custom": "Custom mlp.py",
+    "custom": "Custom",
     "sklearn": "Scikit-Learn",
-    "weka": "Weka",
 }
 DISPLAY_FONT = "Didot"
 BODY_FONT = "Optima"
@@ -41,11 +40,12 @@ class ControlsPanel(ctk.CTkFrame):
         )
         self.on_run = on_run
         self.on_cancel = on_cancel
-        self.learning_rate_var = StringVar(value="0.01")
-        self.hidden_neurons_var = StringVar(value="12")
-        self.epochs_var = StringVar(value="400")
-        self.hidden_activation_var = StringVar(value="relu")
-        self.output_activation_var = StringVar(value="softmax")
+        defaults = DEFAULT_HYPERPARAMETERS
+        self.learning_rate_var = StringVar(value=str(defaults.learning_rate))
+        self.hidden_neurons_var = StringVar(value=str(defaults.hidden_neurons))
+        self.epochs_var = StringVar(value=str(defaults.epochs))
+        self.hidden_activation_var = StringVar(value=defaults.hidden_activation)
+        self.output_activation_var = StringVar(value=defaults.output_activation)
         self.dataset_var = StringVar()
         self.status_var = StringVar(value="Ready")
         self.grid_columnconfigure(0, weight=1)
@@ -120,7 +120,7 @@ class ControlsPanel(ctk.CTkFrame):
 
         shared_hint = ctk.CTkLabel(
             self,
-            text="Learning Rate, Hidden Neurons, and Epochs are valid for Custom, Scikit, and Weka.",
+            text="Learning Rate, Hidden Neurons, and Epochs are valid for Custom and Scikit.",
             wraplength=280,
             justify="left",
             font=ctk.CTkFont(family=BODY_FONT, size=12),
@@ -194,23 +194,13 @@ class ControlsPanel(ctk.CTkFrame):
 
         comparison_hint = ctk.CTkLabel(
             self,
-            text="All three engines use the same split from this app: test size 20% and seed 42.",
+            text="Both engines use the same split from this app: test size 20% and seed 42.",
             wraplength=280,
             justify="left",
             font=ctk.CTkFont(family=BODY_FONT, size=13),
             text_color="#8F8F8F",
         )
         comparison_hint.grid(row=18, column=0, padx=24, pady=(0, 14), sticky="w")
-
-        weka_hint = ctk.CTkLabel(
-            self,
-            text="Weka ignores both activation selectors and needs `bin/weka.jar`.",
-            wraplength=280,
-            justify="left",
-            font=ctk.CTkFont(family=BODY_FONT, size=13),
-            text_color="#8F8F8F",
-        )
-        weka_hint.grid(row=19, column=0, padx=24, pady=(0, 24), sticky="w")
 
     def _add_entry(self, label_text: str, variable: StringVar, row: int) -> None:
         label = ctk.CTkLabel(
@@ -364,13 +354,13 @@ class ChartPanel(ctk.CTkFrame):
 
 
 class ComparativeMLPApp(ctk.CTk):
-    def __init__(self, dataset_path: str | Path, weka_jar_path: str | Path | None = None):
+    def __init__(self, dataset_path: str | Path):
         super().__init__()
         self.title("MLP Glass Dashboard")
         self.geometry("1360x860")
         self.minsize(860, 640)
         self.configure(fg_color="#000000")
-        self.comparison_state = create_comparison_state(dataset_path, weka_jar_path)
+        self.comparison_state = create_comparison_state(dataset_path)
         self.results: dict[str, EngineResult] = {}
         self._compact_layout = False
         self._build_layout(dataset_path)
@@ -408,7 +398,7 @@ class ComparativeMLPApp(ctk.CTk):
 
         header = ctk.CTkLabel(
             self.header_frame,
-            text="comparison ig",
+            text="Custom and scikit-learn",
             font=ctk.CTkFont(family=DISPLAY_FONT, size=32, weight="bold"),
             text_color="#FFFFFF",
         )
@@ -416,7 +406,7 @@ class ComparativeMLPApp(ctk.CTk):
 
         summary = ctk.CTkLabel(
             self.header_frame,
-            text="MLP",
+            text="MLP Comparison",
             font=ctk.CTkFont(family=BODY_FONT, size=15),
             text_color="#CFCFCF",
         )
@@ -428,7 +418,7 @@ class ComparativeMLPApp(ctk.CTk):
             engine_key: ResultCard(self.cards_frame, ENGINE_TITLES[engine_key])
             for engine_key in ENGINE_ORDER
         }
-        self._layout_cards(columns=3)
+        self._layout_cards(columns=2)
 
         self.chart_panel = ChartPanel(self.content)
         self.chart_panel.grid(row=2, column=0, sticky="nsew", padx=6, pady=(16, 12))
@@ -462,7 +452,7 @@ class ComparativeMLPApp(ctk.CTk):
             self.grid_columnconfigure(1, weight=1)
             self.controls.grid(row=0, column=0, columnspan=1, sticky="nsew")
             self.content.grid(row=0, column=1, columnspan=1, sticky="nsew", padx=18, pady=18)
-            self._layout_cards(columns=3)
+            self._layout_cards(columns=2)
 
     def _on_run_clicked(self) -> None:
         try:
@@ -488,7 +478,7 @@ class ComparativeMLPApp(ctk.CTk):
         for engine_key in ENGINE_ORDER:
             self._render_result(engine_key, EngineResult(engine_name=ENGINE_TITLES[engine_key], status="running"))
 
-        self.comparison_state = create_comparison_state(dataset_path=dataset_path, weka_jar_path=Path("bin/weka.jar"))
+        self.comparison_state = create_comparison_state(dataset_path=dataset_path)
         start_comparison(self.comparison_state, params)
 
     def _on_cancel_clicked(self) -> None:

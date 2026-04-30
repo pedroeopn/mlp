@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from .models import DatasetSplit, HyperParameters
+from .schemas import HyperParameters
 
 
 def load_numeric_dataset(dataset_path: str | Path) -> tuple[np.ndarray, np.ndarray]:
@@ -44,7 +44,7 @@ def split_dataset(
     features: np.ndarray,
     labels: np.ndarray,
     params: HyperParameters,
-) -> DatasetSplit:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     x_train, x_test, y_train, y_test = train_test_split(
         features,
         labels,
@@ -53,9 +53,4 @@ def split_dataset(
         stratify=labels,
     )
 
-    return DatasetSplit(
-        x_train=x_train,
-        x_test=x_test,
-        y_train=y_train,
-        y_test=y_test,
-    )
+    return x_train, x_test, y_train, y_test
