@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from .schemas import HyperParameters
 
 
-def load_numeric_dataset(dataset_path: str | Path) -> tuple[np.ndarray, np.ndarray]:
+def load_raw_numeric_dataset(dataset_path: str | Path) -> tuple[np.ndarray, np.ndarray]:
     path = Path(dataset_path)
     rows: list[list[float]] = []
 
@@ -28,6 +28,11 @@ def load_numeric_dataset(dataset_path: str | Path) -> tuple[np.ndarray, np.ndarr
         mapping = {label: index for index, label in enumerate(unique_classes)}
         y = np.vectorize(mapping.get)(y).astype(int)
 
+    return x, y
+
+
+def load_numeric_dataset(dataset_path: str | Path) -> tuple[np.ndarray, np.ndarray]:
+    x, y = load_raw_numeric_dataset(dataset_path)
     x = normalize_features(x)
     return x, y
 

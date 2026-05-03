@@ -1,214 +1,17 @@
 from __future__ import annotations
 
-import multiprocessing as mp
-import queue
 import random
-import threading
 import time
 from pathlib import Path
 
 import numpy as np
-from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
 
-from .schemas import EngineResult, HyperParameters, SessionEvent
-from .sklearn_mlp import run_sklearn_mlp
-from .utils import load_numeric_dataset, split_dataset
+from .schemas import EngineResult, HyperParameters
 
-ENGINE_NAMES = {
-    "custom": "Custom",
-    "sklearn": "Scikit-Learn",
-}
-CONTROL_KEY = "__session__"
 SRC_DIR = Path(__file__).resolve().parent
 BLACK_BOX_MLP_PATH = SRC_DIR / "mlp.py"
 SOURCE_SPLIT_MARKER = "# MÓDULO PRINCIPAL"
-
-
-def create_comparison_state(dataset_path: str | Path) -> dict:
-    return {
-        "dataset_path": Path(dataset_path),
-        "result_queue": queue.Queue(),
-        "mp_context": mp.get_context("spawn"),
-        "mp_queue": None,
-        "collector_thread": None,
-        "processes": {},
-        "cancel_requested": threading.Event(),
-        "active": False,
-        "lock": threading.Lock(),
-    }
-
-
-def start_comparison(state: dict, params: HyperParameters) -> None:
-    with state["lock"]:
-        if state["active"]:
-            raise RuntimeError("A comparison is already running.")
-        state["result_queue"] = queue.Queue()
-        state["cancel_requested"].clear()
-        state["processes"] = {}
-        state["mp_queue"] = state["mp_context"].Queue()
-        state["active"] = True
-
-    try:
-        features, labels = load_numeric_dataset(state["dataset_path"])
-        x_train, x_test, y_train, y_test = split_dataset(features, labels, params)
-
-        workers = {
-            "custom": state["mp_context"].Process(
-                target=_run_custom_worker,
-                args=(state["mp_queue"], x_train, y_train, x_test, y_test, params),
-            ),
-            "sklearn": state["mp_context"].Process(
-                target=_run_sklearn_worker,
-                args=(state["mp_queue"], x_train, y_train, x_test, y_test, params),
-            ),
-        }
-
-        state["processes"] = workers
-        for process in workers.values():
-            process.daemon = True
-            process.start()
-
-        state["collector_thread"] = threading.Thread(
-            target=_collect_results,
-            args=(state,),
-            daemon=True,
-        )
-        state["collector_thread"].start()
-    except Exception as exc:
-        state["active"] = False
-        for engine_key in ENGINE_NAMES:
-            state["result_queue"].put((engine_key, _build_failure_result(engine_key, str(exc))))
-        state["result_queue"].put(
-            (
-                CONTROL_KEY,
-                SessionEvent(
-                    event_type="session",
-                    status="failed",
-                    message=str(exc),
-                ),
-            )
-        )
-
-
-def cancel_comparison(state: dict) -> None:
-    with state["lock"]:
-        if not state["active"]:
-            return
-        state["cancel_requested"].set()
-        for process in state["processes"].values():
-            if process.is_alive():
-                process.terminate()
-
-
-def _build_failure_result(engine_key: str, message: str) -> EngineResult:
-    return EngineResult(
-        engine_name=ENGINE_NAMES[engine_key],
-        status="failed",
-        note=message,
-    )
-
-
-def _run_custom_worker(result_queue, x_train, y_train, x_test, y_test, params) -> None:
-    try:
-        result = run_custom_mlp(x_train, y_train, x_test, y_test, params)
-    except Exception as exc:  # pragma: no cover
-        result = _build_failure_result("custom", str(exc))
-    result_queue.put(("custom", result))
-
-
-def _run_sklearn_worker(result_queue, x_train, y_train, x_test, y_test, params) -> None:
-    try:
-        result = run_sklearn_mlp(x_train, y_train, x_test, y_test, params)
-    except Exception as exc:  # pragma: no cover
-        result = _build_failure_result("sklearn", str(exc))
-    result_queue.put(("sklearn", result))
-
-
-def _collect_results(state: dict) -> None:
-    delivered: set[str] = set()
-    session_status = "completed"
-    session_message = "Comparison completed."
-
-    try:
-        while len(delivered) < len(ENGINE_NAMES):
-            if state["cancel_requested"].is_set():
-                session_status = "cancelled"
-                session_message = "Comparison cancelled."
-                break
-
-            try:
-                engine_key, result = state["mp_queue"].get(timeout=0.2)
-            except queue.Empty:
-                if all(not process.is_alive() for process in state["processes"].values()):
-                    break
-                continue
-            except (EOFError, OSError) as exc:
-                session_status = "failed"
-                session_message = f"Result collection failed: {exc}"
-                break
-
-            if engine_key in delivered:
-                continue
-
-            delivered.add(engine_key)
-            state["result_queue"].put((engine_key, result))
-
-        if state["cancel_requested"].is_set():
-            _emit_missing_results(state, delivered, status="cancelled", note="Execution cancelled by user.")
-        elif len(delivered) < len(ENGINE_NAMES):
-            session_status = "failed"
-            session_message = "Comparison ended before all engines returned results."
-            _emit_missing_results(
-                state,
-                delivered,
-                status="failed",
-                note="Worker did not return a result before the session ended.",
-            )
-    except Exception as exc:  # pragma: no cover
-        session_status = "failed"
-        session_message = str(exc)
-        _emit_missing_results(state, delivered, status="failed", note=f"Collector failed: {exc}")
-    finally:
-        for engine_key in list(state["processes"]):
-            process = state["processes"][engine_key]
-            if process.is_alive():
-                process.terminate()
-            process.join(timeout=0.2)
-
-        if state["mp_queue"] is not None:
-            state["mp_queue"].close()
-            state["mp_queue"].join_thread()
-
-        with state["lock"]:
-            state["active"] = False
-
-        state["result_queue"].put(
-            (
-                CONTROL_KEY,
-                SessionEvent(
-                    event_type="session",
-                    status=session_status,
-                    message=session_message,
-                ),
-            )
-        )
-
-
-def _emit_missing_results(state: dict, delivered: set[str], status: str, note: str) -> None:
-    for engine_key in ENGINE_NAMES:
-        if engine_key in delivered:
-            continue
-        state["result_queue"].put(
-            (
-                engine_key,
-                EngineResult(
-                    engine_name=ENGINE_NAMES[engine_key],
-                    status=status,
-                    note=note,
-                ),
-            )
-        )
-        delivered.add(engine_key)
 
 
 def _load_black_box_namespace() -> dict[str, object]:
@@ -337,31 +140,23 @@ def run_custom_mlp(x_train, y_train, x_test, y_test, params: HyperParameters) ->
         params.hidden_activation.lower(),
         params.output_activation.lower(),
     )
-    accuracy = calcular_acuracia(y_test.tolist(), predictions)
-    precision, recall, f1_score, _ = precision_recall_fscore_support(
-        y_test,
-        predictions,
-        average="weighted",
-        zero_division=0,
-    )
-    custom_confusion_matrix = confusion_matrix(y_test, predictions)
+    matrix = confusion_matrix(y_test, predictions, labels=[1, 0])
 
     return EngineResult(
         engine_name="Custom mlp.py",
-        accuracy=float(accuracy),
-        precision=float(precision * 100.0),
-        recall=float(recall * 100.0),
-        f1_score=float(f1_score * 100.0),
+        accuracy=float(calcular_acuracia(y_test.tolist(), predictions)),
+        precision=float(precision_score(y_test, predictions, average="binary", zero_division=0) * 100.0),
+        recall=float(recall_score(y_test, predictions, average="binary", zero_division=0) * 100.0),
+        f1_score=float(f1_score(y_test, predictions, average="binary", zero_division=0) * 100.0),
         training_time=float(elapsed),
         status="completed",
         note=(
-            f"Custom hidden={params.hidden_activation.lower()} "
-            f"output={params.output_activation.lower()} "
-            f"lr={params.learning_rate}. "
-            "Accuracy from mlp.py using the same predictions shown here; "
-            "precision, recall, F1, and confusion matrix from Scikit-Learn."
+            f"hidden={params.hidden_activation.lower()} output={params.output_activation.lower()} "
+            f"lr={params.learning_rate}. Accuracy from mlp.py; precision, recall, F1, "
+            "and confusion matrix from Scikit-Learn using binary average. "
+            "Confusion matrix layout: [[VP, FN], [FP, VN]]."
         ),
         extra={
-            "confusion_matrix": np.array2string(custom_confusion_matrix, separator=", "),
+            "confusion_matrix": np.array2string(matrix, separator=", "),
         },
     )
